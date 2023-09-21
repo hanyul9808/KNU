@@ -1,1 +1,1 @@
-# KNU-projct
+# KNU
