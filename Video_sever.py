@@ -8,44 +8,46 @@ import pickle
 from PIL import Image, ImageTk
 
 HOST = '127.0.0.1'
-videoPORT = 3600
-chatPORT = 3700
-video_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-video_server_socket.bind((HOST, videoPORT))
-video_server_socket.listen()
+Vport = 3600
+Cport = 3700
 
-chat_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-chat_server_socket.bind((HOST, chatPORT))
-chat_server_socket.listen()
 
-video_clients = []
-chat_clients = []
+Vsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+Vsocket.bind((HOST, Vport))
+Vsocket.listen()
+
+Csocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+Csocket.bind((HOST, Cport))
+Csocket.listen()
+
+Vclient = []
+Cclient = []
 
 
 vid = cv2.VideoCapture(0)
 
 root = tk.Tk()
-root.title("Combined Server")
+root.title("서버")
 
 main_frame = ttk.Frame(root)
 main_frame.grid(row=0, column=0)
 
-video_frame = ttk.LabelFrame(main_frame, text="Video Streaming")
-video_frame.grid(row=0, column=0)
+Vframe = ttk.LabelFrame(main_frame, text="비디오")
+Vframe.grid(row=0, column=0)
 
-video_label = ttk.Label(video_frame)
+video_label = ttk.Label(Vframe)
 video_label.pack()
 
-chat_frame = ttk.LabelFrame(main_frame, text="Chat")
-chat_frame.grid(row=0, column=1)
+Cframe = ttk.LabelFrame(main_frame, text="채팅")
+Cframe.grid(row=0, column=1)
 
-chat_text = tk.Text(chat_frame, height=15, width=50)
-chat_text.pack()
+chat = tk.Text(Cframe, height=15, width=50)
+chat.pack()
 
-chat_entry = tk.Entry(chat_frame, width=50)
-chat_entry.pack()
+entry = tk.Entry(Cframe, width=50)
+entry.pack()
 
-def send_video_stream(client):
+def Cap_video(client):
     while True:
         ret, frame = vid.read()
         frame_bytes = pickle.dumps(frame)
@@ -58,50 +60,49 @@ def send_video_stream(client):
             client.sendall(msg)
         except:
             print("클라이언트 연결이 종료되었습니다.")
-            video_clients.remove(client)
+            Vclient.remove(client)
 
-def handle_chat_client(client):
+def handle_chat(client):
     while True:
         try:
             message = client.recv(1024).decode()
-            chat_text.insert(tk.END, "Client: " + message + '\n')
+            chat.insert(tk.END, "Client: " + message + '\n')
         except Exception as e:
             print("클라이언트 연결이 종료되었습니다.")
-            chat_clients.remove(client)
+            Cclient.remove(client)
             break
 
-def accept_video_clients():
+def accept_video():
     while True:
-        client, addr = video_server_socket.accept()
-        video_clients.append(client)
-        video_stream_thread = threading.Thread(target=send_video_stream, args=(client,))
+        client, addr = Vsocket.accept()
+        Vclient.append(client)
+        video_stream_thread = threading.Thread(target=Cap_video, args=(client,))
         video_stream_thread.start()
 
-def accept_chat_clients():
+def accept_chat():
     while True:
-        client, addr = chat_server_socket.accept()
-        chat_clients.append(client)
-        chat_thread = threading.Thread(target=handle_chat_client, args=(client,))
+        client, addr = Csocket.accept()
+        Cclient.append(client)
+        chat_thread = threading.Thread(target=handle_chat, args=(client,))
         chat_thread.start()
 
-video_accept_thread = threading.Thread(target=accept_video_clients)
-video_accept_thread.start()
+vthread = threading.Thread(target=accept_video)
+vthread.start()
 
-chat_accept_thread = threading.Thread(target=accept_chat_clients)
-chat_accept_thread.start()
+chat_thread = threading.Thread(target=accept_chat)
+chat_thread.start()
 
-def send_chat_message():
-    message = chat_entry.get()
-    for client in chat_clients:
+def send_message():
+    message = entry.get()
+    for client in Cclient:
         try:
             client.send(message.encode())
         except:
-            print("클라이언트 연결이 종료되었습니다.")
-            chat_clients.remove(client)
-    chat_text.insert(tk.END, "Server: " + message + '\n')
-    chat_entry.delete(0, tk.END)
+            Cclient.remove(client)
+    chat.insert(tk.END, "서버: " + message + '\n')
+    entry.delete(0, tk.END)
 
-send_chat_button = tk.Button(chat_frame, text="메시지 전송", command=send_chat_message)
-send_chat_button.pack()
+button = tk.Button(Cframe, text="메시지 전송", command=send_message)
+button.pack()
 
 root.mainloop()
