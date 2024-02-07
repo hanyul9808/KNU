@@ -1,0 +1,65 @@
+import tkinter as tk
+from tkinter import ttk
+import cv2
+from PIL import Image, ImageTk
+import socket
+import threading
+import struct
+import pickle
+
+class VideoStreamingApp:
+    def __init__(self, window, window_title, video_source=0):
+        self.window = window
+        self.window.title(window_title)
+        self.video_source = video_source
+
+        # 카메라 설정
+        self.vid = cv2.VideoCapture(video_source)
+        self.canvas = tk.Canvas(window, width=self.vid.get(cv2.CAP_PROP_FRAME_WIDTH), height=self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.canvas.pack()
+
+        # 스냅샷 버튼
+        self.btn_snapshot = ttk.Button(window, text="Snapshot", command=self.snapshot)
+        self.btn_snapshot.pack(anchor=tk.CENTER, expand=True)
+
+        self.delay = 15
+        self.update()
+
+        self.window.mainloop()
+
+    def snapshot(self):
+        # 현재 비디오 프레임 캡처 및 전송
+        ret, frame = self.vid.read()
+        if ret:
+            a = pickle.dumps(frame)
+            message = struct.pack("Q", len(a)) + a
+            client_socket.sendall(message)
+
+    def update(self):
+        # 비디오 스트리밍 업데이트
+        ret, frame = self.vid.read()
+        if ret:
+            self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        self.window.after(self.delay, self.update)
+
+# 소켓 설정
+def socket_setup():
+    global client_socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_ip = 'localhost'  # 서버 IP 주소
+    port = 12345  # 포트 번호
+    server_socket.bind((host_ip, port))
+    server_socket.listen(5)
+    print("Listening at:", (host_ip, port))
+
+    # 클라이언트 접속 대기
+    client_socket, addr = server_socket.accept()
+    print('Got connection from:', addr)
+
+# 소켓 설정을 위한 별도 스레드 시작
+threading.Thread(target=socket_setup).start()
+
+# GUI 생성
+root = tk.Tk()
+app = VideoStreamingApp(root, "Video Streaming Server")
